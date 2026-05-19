@@ -1,0 +1,10 @@
+node_modules
+.env
+.DS_Store
+dist
+coverage
+server/data/database.json
+server/data/database.sqlite
+server/data/database.sqlite-wal
+server/data/database.sqlite-shm
+frontend/dist
