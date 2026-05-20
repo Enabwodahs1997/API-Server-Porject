@@ -1,105 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
 import { createToken } from '../src/auth.js';
-import { createApp } from '../src/app.js';
+import app from '../src/app.js';
 
-function buildStore() {
-  const users = [
-    {
-      id: 1,
-      username: 'demo',
-      passwordHash: bcrypt.hashSync('demo1234', 10),
-      createdAt: '2025-01-01T00:00:00.000Z'
-    }
-  ];
+await import('../src/seed.js');
 
-  const cards = [
-    {
-      id: 1,
-      name: 'Ember Drake',
-      type: 'Creature',
-      rarity: 'Rare',
-      attack: 7,
-      defense: 5,
-      description: 'A fire-breathing dragon.',
-      imageUrl: 'https://example.com/ember.jpg',
-      ownerId: 1,
-      createdAt: '2025-01-01T00:00:00.000Z',
-      updatedAt: '2025-01-01T00:00:00.000Z'
-    }
-  ];
+test('auth endpoints work with seeded data', async () => {
+  const healthResponse = await request(app).get('/api/health');
 
-  let nextUserId = 2;
-  let nextCardId = 2;
+  assert.equal(healthResponse.status, 200);
+  assert.deepEqual(healthResponse.body, { ok: true, service: 'collectible-card-game-api' });
 
-  return {
-    async getUserByUsername(username) {
-      return users.find((user) => user.username.toLowerCase() === String(username).toLowerCase()) || null;
-    },
-    async getUserById(id) {
-      return users.find((user) => user.id === Number(id)) || null;
-    },
-    async createUser(user) {
-      const created = { ...user, id: nextUserId++ };
-      users.push(created);
-      return created;
-    },
-    async listCards() {
-      return [...cards].sort((left, right) => right.id - left.id);
-    },
-    async getCardById(id) {
-      return cards.find((card) => card.id === Number(id)) || null;
-    },
-    async createCard(card) {
-      const created = { ...card, id: nextCardId++ };
-      cards.push(created);
-      return created;
-    },
-    async updateCard(id, updates) {
-      const card = cards.find((entry) => entry.id === Number(id));
-      if (!card) {
-        return null;
-      }
+  const invalidRegisterResponse = await request(app)
+    .post('/api/auth/register')
+    .send({ username: 'ab', password: 'short' });
 
-      Object.assign(card, updates);
-      return card;
-    },
-    async deleteCard(id) {
-      const index = cards.findIndex((entry) => entry.id === Number(id));
-      if (index >= 0) {
-        cards.splice(index, 1);
-      }
-    }
-  };
-}
+  assert.equal(invalidRegisterResponse.status, 400);
+  assert.equal(invalidRegisterResponse.body.status, 'error');
+  assert.equal(invalidRegisterResponse.body.message, 'Validation failed.');
+  assert.ok(Array.isArray(invalidRegisterResponse.body.details));
 
-test('health endpoint works', async () => {
-  const app = createApp(buildStore());
-  const response = await request(app).get('/api/health');
-
-  assert.equal(response.status, 200);
-  assert.deepEqual(response.body, { ok: true, service: 'collectible-card-game-api' });
-});
-
-test('register validates input', async () => {
-  const app = createApp(buildStore());
-  const response = await request(app).post('/api/auth/register').send({ username: 'ab', password: 'short' });
-
-  assert.equal(response.status, 400);
-  assert.equal(response.body.status, 'error');
-  assert.equal(response.body.message, 'Validation failed.');
-  assert.ok(Array.isArray(response.body.details));
-});
-
-test('register and login return tokens', async () => {
-  const store = buildStore();
-  const app = createApp(store);
-
+  const uniqueUsername = `player-${crypto.randomUUID().slice(0, 8)}`;
   const registerResponse = await request(app)
     .post('/api/auth/register')
-    .send({ username: 'player1', password: 'supersecret' });
+    .send({ username: uniqueUsername, password: 'supersecret' });
 
   assert.equal(registerResponse.status, 201);
   assert.equal(registerResponse.body.status, 'success');
@@ -112,33 +38,77 @@ test('register and login return tokens', async () => {
   assert.equal(loginResponse.status, 200);
   assert.equal(loginResponse.body.status, 'success');
   assert.ok(loginResponse.body.token);
+
+  const meResponse = await request(app)
+    .get('/api/me')
+    .set('Authorization', `Bearer ${loginResponse.body.token}`);
+
+  assert.equal(meResponse.status, 200);
+  assert.equal(meResponse.body.status, 'success');
+  assert.equal(meResponse.body.user.username, 'demo');
 });
 
-test('protected card routes require auth', async () => {
-  const app = createApp(buildStore());
-  const response = await request(app).get('/api/cards');
+test('seeded card endpoints support read and ownership flows', async () => {
+  const loginResponse = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'demo', password: 'demo1234' });
 
-  assert.equal(response.status, 401);
-  assert.equal(response.body.message, 'Missing bearer token.');
-});
+  assert.equal(loginResponse.status, 200);
+  const demoToken = loginResponse.body.token;
 
-test('card workflow respects ownership', async () => {
-  const store = buildStore();
-  const app = createApp(store);
-  const token = createToken({ id: 1, username: 'demo' });
+  const countResponse = await request(app).get('/api/cards/count');
+  assert.equal(countResponse.status, 200);
+  assert.equal(countResponse.body.status, 'success');
+  assert.ok(countResponse.body.count >= 1);
 
   const listResponse = await request(app)
     .get('/api/cards')
-    .set('Authorization', `Bearer ${token}`);
+    .set('Authorization', `Bearer ${demoToken}`);
 
   assert.equal(listResponse.status, 200);
-  assert.equal(listResponse.body.cards.length, 1);
+  assert.equal(listResponse.body.status, 'success');
+  assert.equal(listResponse.body.cards.length, countResponse.body.count);
 
+  const randomResponse = await request(app).get('/api/cards/random');
+  assert.equal(randomResponse.status, 200);
+  assert.equal(randomResponse.body.status, 'success');
+  assert.ok(listResponse.body.cards.some((card) => card.id === randomResponse.body.card.id));
+
+  const typesResponse = await request(app).get('/api/types');
+  assert.equal(typesResponse.status, 200);
+  assert.ok(typesResponse.body.types.includes('Creature'));
+  assert.ok(typesResponse.body.types.includes('Spell'));
+
+  const raritiesResponse = await request(app).get('/api/rarities');
+  assert.equal(raritiesResponse.status, 200);
+  assert.ok(raritiesResponse.body.rarities.includes('Common'));
+  assert.ok(raritiesResponse.body.rarities.includes('Rare'));
+
+  const setsResponse = await request(app).get('/api/sets');
+  assert.equal(setsResponse.status, 200);
+  assert.deepEqual(setsResponse.body.sets, []);
+
+  const cardId = listResponse.body.cards[0].id;
+  const cardResponse = await request(app)
+    .get(`/api/cards/${cardId}`)
+    .set('Authorization', `Bearer ${demoToken}`);
+
+  assert.equal(cardResponse.status, 200);
+  assert.equal(cardResponse.body.card.id, cardId);
+
+  const missingCardResponse = await request(app)
+    .get('/api/cards/99999999')
+    .set('Authorization', `Bearer ${demoToken}`);
+
+  assert.equal(missingCardResponse.status, 404);
+  assert.equal(missingCardResponse.body.message, 'Card not found.');
+
+  const baseCount = countResponse.body.count;
   const createResponse = await request(app)
     .post('/api/cards')
-    .set('Authorization', `Bearer ${token}`)
+    .set('Authorization', `Bearer ${demoToken}`)
     .send({
-      name: 'Moon Archer',
+      name: `Moon Archer ${crypto.randomUUID().slice(0, 8)}`,
       type: 'Creature',
       rarity: 'Common',
       attack: 2,
@@ -148,13 +118,49 @@ test('card workflow respects ownership', async () => {
     });
 
   assert.equal(createResponse.status, 201);
+  assert.equal(createResponse.body.status, 'success');
   assert.equal(createResponse.body.card.ownerId, 1);
 
-  const forbiddenResponse = await request(app)
-    .put('/api/cards/1')
+  const createdCardId = createResponse.body.card.id;
+  const afterCreateCountResponse = await request(app).get('/api/cards/count');
+  assert.equal(afterCreateCountResponse.body.count, baseCount + 1);
+
+  const forbiddenUpdateResponse = await request(app)
+    .put(`/api/cards/${createdCardId}`)
     .set('Authorization', `Bearer ${createToken({ id: 2, username: 'other' })}`)
     .send({ name: 'New Name' });
 
-  assert.equal(forbiddenResponse.status, 403);
-  assert.equal(forbiddenResponse.body.message, 'You can only edit cards you created.');
+  assert.equal(forbiddenUpdateResponse.status, 403);
+  assert.equal(forbiddenUpdateResponse.body.message, 'You can only edit cards you created.');
+
+  const updateResponse = await request(app)
+    .put(`/api/cards/${createdCardId}`)
+    .set('Authorization', `Bearer ${demoToken}`)
+    .send({ name: 'Moon Archer Prime' });
+
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updateResponse.body.card.name, 'Moon Archer Prime');
+
+  const forbiddenDeleteResponse = await request(app)
+    .delete(`/api/cards/${createdCardId}`)
+    .set('Authorization', `Bearer ${createToken({ id: 2, username: 'other' })}`);
+
+  assert.equal(forbiddenDeleteResponse.status, 403);
+  assert.equal(forbiddenDeleteResponse.body.message, 'You can only delete cards you created.');
+
+  const deleteResponse = await request(app)
+    .delete(`/api/cards/${createdCardId}`)
+    .set('Authorization', `Bearer ${demoToken}`);
+
+  assert.equal(deleteResponse.status, 204);
+
+  const afterDeleteCountResponse = await request(app).get('/api/cards/count');
+  assert.equal(afterDeleteCountResponse.body.count, baseCount);
+
+  const deletedCardResponse = await request(app)
+    .get(`/api/cards/${createdCardId}`)
+    .set('Authorization', `Bearer ${demoToken}`);
+
+  assert.equal(deletedCardResponse.status, 404);
+  assert.equal(deletedCardResponse.body.message, 'Card not found.');
 });

@@ -83,6 +83,31 @@ export async function listCards() {
   return rows.map(mapCard);
 }
 
+export async function listTypes() {
+  const rows = await query('SELECT DISTINCT type FROM cards ORDER BY type');
+  return rows.map((r) => r.type);
+}
+
+export async function listRarities() {
+  const rows = await query('SELECT DISTINCT rarity FROM cards ORDER BY rarity');
+  return rows.map((r) => r.rarity);
+}
+
+export async function listSets() {
+  // Support common column names for a "set" if present, otherwise return empty array.
+  const candidates = ['set', 'card_set', 'set_name'];
+  const cols = await query(
+    `SELECT column_name FROM information_schema.columns WHERE table_name = 'cards' AND column_name = ANY($1::text[])`,
+    [candidates]
+  );
+
+  if (!cols || cols.length === 0) return [];
+
+  const colName = cols[0].column_name;
+  const rows = await query(`SELECT DISTINCT "${colName}" AS set_name FROM cards WHERE "${colName}" IS NOT NULL ORDER BY "${colName}"`);
+  return rows.map((r) => r.set_name);
+}
+
 export async function getCardById(id) {
   const rows = await query('SELECT * FROM cards WHERE id = $1 LIMIT 1', [id]);
   return mapCard(rows[0]);
@@ -143,6 +168,11 @@ export async function deleteCard(id) {
 export async function countCards() {
   const rows = await query('SELECT COUNT(*)::int AS count FROM cards');
   return rows[0]?.count || 0;
+}
+
+export async function getRandomCard() {
+  const rows = await query('SELECT * FROM cards ORDER BY random() LIMIT 1');
+  return mapCard(rows[0]);
 }
 
 export async function closeDatabase() {

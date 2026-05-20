@@ -75,3 +75,7 @@ npm test
 2. Log in with `POST /api/auth/login`.
 3. Copy the token into the `Authorization: Bearer <token>` header.
 4. Use the card routes under `/api/cards`.
+
+## Why Docker?
+
+I chose to use Docker's software program because it allows you to build, test, and deploy applications quickly by packaging them into standardized units called containers. I felt it was a good use of the program due to the style of program I am building.

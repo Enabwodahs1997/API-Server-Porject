@@ -10,6 +10,11 @@ import {
   getUserById,
   getUserByUsername,
   listCards,
+  countCards,
+  getRandomCard,
+  listTypes,
+  listRarities,
+  listSets,
   updateCard
 } from './dataStore.js';
 import { createCardSchema, loginSchema, parseBody, registerSchema, updateCardSchema } from './validation.js';
@@ -22,6 +27,11 @@ export function createApp(dataStore = {
   getUserById,
   getUserByUsername,
   listCards,
+  countCards,
+  getRandomCard,
+  listTypes,
+  listRarities,
+  listSets,
   updateCard
 }) {
   const app = express();
@@ -114,8 +124,64 @@ export function createApp(dataStore = {
     }
   });
 
+  app.get('/api/cards/count', async (_req, res, next) => {
+    try {
+      const count = await dataStore.countCards();
+      res.json({ status: 'success', count });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/cards/random', async (_req, res, next) => {
+    try {
+      const card = await dataStore.getRandomCard();
+
+      if (!card) {
+        return res.status(404).json({ status: 'error', message: 'No cards available.' });
+      }
+
+      res.json({ status: 'success', card });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Metadata endpoints
+  app.get('/api/types', async (_req, res, next) => {
+    try {
+      const types = await dataStore.listTypes();
+      res.json({ status: 'success', types });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/rarities', async (_req, res, next) => {
+    try {
+      const rarities = await dataStore.listRarities();
+      res.json({ status: 'success', rarities });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/sets', async (_req, res, next) => {
+    try {
+      const sets = await dataStore.listSets();
+      res.json({ status: 'success', sets });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get('/api/cards/:id', requireAuth, async (req, res, next) => {
     try {
+      // If the client requested a literal sub-route (e.g. 'count' or 'random'),
+      // skip this handler so the more specific routes can handle it.
+      const id = req.params.id;
+      if (id === 'count' || id === 'random') return next();
+
       const card = await dataStore.getCardById(req.params.id);
 
       if (!card) {
@@ -218,6 +284,20 @@ export function createApp(dataStore = {
       details: error.details || undefined
     });
   });
+
+  // Debug: list registered routes (method + path)
+  try {
+    const routes = [];
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        const methods = Object.keys(middleware.route.methods).join(',').toUpperCase();
+        routes.push(`${methods} ${middleware.route.path}`);
+      }
+    });
+    console.log('Registered routes:\n' + routes.join('\n'));
+  } catch (e) {
+    // ignore
+  }
 
   return app;
 }
