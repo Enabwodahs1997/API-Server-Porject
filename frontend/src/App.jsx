@@ -179,6 +179,33 @@ export default function App() {
     localStorage.removeItem('token');
   }
 
+  async function clearCache() {
+    setError('');
+    setStatus('');
+
+    try {
+      // Clear storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Clear Cache Storage if available
+      if (window.caches && typeof window.caches.keys === 'function') {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+
+      // Reset app state and reload to ensure a fresh load
+      setToken('');
+      setUser(null);
+      setCards([]);
+      setCardForm(emptyForm);
+      setEditingCardId(null);
+      window.location.reload();
+    } catch (err) {
+      setError('Failed to clear cache');
+    }
+  }
+
   return (
     <div className="shell">
       <header className="hero">
@@ -193,6 +220,10 @@ export default function App() {
           <strong>Try it fast</strong>
           <p>Use the demo account or create a new one, then manage cards from the UI.</p>
           <code>demo / demo1234</code>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <button className="secondary" onClick={() => { navigator.clipboard && navigator.clipboard.writeText('demo / demo1234'); }}>Copy creds</button>
+            <button className="secondary" onClick={clearCache}>Clear cache</button>
+          </div>
         </div>
       </header>
 
