@@ -48,6 +48,22 @@ test('auth endpoints work with seeded data', async () => {
   assert.equal(meResponse.body.user.username, 'demo');
 });
 
+test('card creation reports a helpful message when the request body is missing', async () => {
+  const loginResponse = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'demo', password: 'demo1234' });
+
+  const response = await request(app)
+    .post('/api/cards')
+    .set('Authorization', `Bearer ${loginResponse.body.token}`);
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.status, 'error');
+  assert.equal(response.body.message, 'Validation failed.');
+  assert.ok(response.body.details.some((detail) => detail.field === 'request body'));
+  assert.ok(response.body.details.some((detail) => detail.message.includes('Send a JSON object')));
+});
+
 test('seeded card endpoints support read and ownership flows', async () => {
   const loginResponse = await request(app)
     .post('/api/auth/login')
@@ -121,9 +137,34 @@ test('seeded card endpoints support read and ownership flows', async () => {
   assert.equal(createResponse.body.status, 'success');
   assert.equal(createResponse.body.card.ownerId, 1);
 
-  const createdCardId = createResponse.body.card.id;
   const afterCreateCountResponse = await request(app).get('/api/cards/count');
   assert.equal(afterCreateCountResponse.body.count, baseCount + 1);
+
+  const minimalCreateResponse = await request(app)
+    .post('/api/cards')
+    .set('Authorization', `Bearer ${demoToken}`)
+    .send({
+      name: `Blank Slate ${crypto.randomUUID().slice(0, 8)}`
+    });
+
+  assert.equal(minimalCreateResponse.status, 201);
+  assert.equal(minimalCreateResponse.body.status, 'success');
+  assert.equal(minimalCreateResponse.body.card.type, 'Creature');
+  assert.equal(minimalCreateResponse.body.card.rarity, 'Common');
+  assert.equal(minimalCreateResponse.body.card.attack, 0);
+  assert.equal(minimalCreateResponse.body.card.defense, 0);
+  assert.equal(minimalCreateResponse.body.card.description, '');
+  assert.equal(minimalCreateResponse.body.card.imageUrl, '');
+
+  const minimalCardId = minimalCreateResponse.body.card.id;
+
+  const cleanupMinimalCardResponse = await request(app)
+    .delete(`/api/cards/${minimalCardId}`)
+    .set('Authorization', `Bearer ${demoToken}`);
+
+  assert.equal(cleanupMinimalCardResponse.status, 204);
+
+  const createdCardId = createResponse.body.card.id;
 
   const forbiddenUpdateResponse = await request(app)
     .put(`/api/cards/${createdCardId}`)

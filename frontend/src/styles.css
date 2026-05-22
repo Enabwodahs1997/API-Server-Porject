@@ -166,6 +166,10 @@ label {
   color: #94a3b8;
 }
 
+.form-note {
+  margin: 0 0 0.9rem;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -204,6 +208,7 @@ label {
 
 .error {
   color: #fca5a5;
+  white-space: pre-line;
 }
 
 @media (max-width: 900px) {

@@ -11,13 +11,15 @@ const emptyForm = {
 };
 
 async function request(path, options = {}) {
-  const response = await fetch(path, {
+  const fetchOptions = {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {})
-    },
-    ...options
-  });
+    }
+  };
+
+  const response = await fetch(path, fetchOptions);
 
   if (response.status === 204) {
     return null;
@@ -26,10 +28,25 @@ async function request(path, options = {}) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || 'Request failed');
+    const error = new Error(data.message || 'Request failed');
+    error.details = Array.isArray(data.details) ? data.details : [];
+    error.statusCode = response.status;
+    throw error;
   }
 
   return data;
+}
+
+function formatErrorMessage(error) {
+  if (!error?.details?.length) {
+    return error?.message || 'Request failed';
+  }
+
+  const details = error.details
+    .map((detail) => `- ${detail.field}: ${detail.message}`)
+    .join('\n');
+
+  return `${error.message}\n${details}`;
 }
 
 export default function App() {
@@ -88,7 +105,7 @@ export default function App() {
       setUser(data.user);
       setStatus(authMode === 'login' ? 'Welcome back.' : 'Account created.');
     } catch (err) {
-      setError(err.message);
+      setError(formatErrorMessage(err));
     }
   }
 
@@ -119,7 +136,7 @@ export default function App() {
       await loadCards(token);
       setStatus(editingCardId ? 'Card updated.' : 'Card created.');
     } catch (err) {
-      setError(err.message);
+      setError(formatErrorMessage(err));
     }
   }
 
@@ -149,7 +166,7 @@ export default function App() {
       await loadCards(token);
       setStatus('Card deleted.');
     } catch (err) {
-      setError(err.message);
+      setError(formatErrorMessage(err));
     }
   }
 
@@ -227,6 +244,8 @@ export default function App() {
             {editingCardId ? <button className="secondary" onClick={() => { setEditingCardId(null); setCardForm(emptyForm); }}>Cancel</button> : null}
           </div>
 
+          <p className="muted form-note">Only name is required. Type, rarity, stats, description, and image URL all have defaults.</p>
+
           <form className="form" onSubmit={handleCardSubmit}>
             <div className="two-up">
               <label>
@@ -234,7 +253,7 @@ export default function App() {
                 <input value={cardForm.name} onChange={(event) => setCardForm({ ...cardForm, name: event.target.value })} required />
               </label>
               <label>
-                Type
+                Type (optional)
                 <select value={cardForm.type} onChange={(event) => setCardForm({ ...cardForm, type: event.target.value })}>
                   <option>Creature</option>
                   <option>Spell</option>
@@ -245,7 +264,7 @@ export default function App() {
             </div>
             <div className="two-up">
               <label>
-                Rarity
+                Rarity (optional)
                 <select value={cardForm.rarity} onChange={(event) => setCardForm({ ...cardForm, rarity: event.target.value })}>
                   <option>Common</option>
                   <option>Uncommon</option>
@@ -255,22 +274,22 @@ export default function App() {
                 </select>
               </label>
               <label>
-                Image URL
+                Image URL (optional)
                 <input value={cardForm.imageUrl} onChange={(event) => setCardForm({ ...cardForm, imageUrl: event.target.value })} />
               </label>
             </div>
             <div className="two-up">
               <label>
-                Attack
+                Attack (optional)
                 <input type="number" value={cardForm.attack} onChange={(event) => setCardForm({ ...cardForm, attack: Number(event.target.value) })} />
               </label>
               <label>
-                Defense
+                Defense (optional)
                 <input type="number" value={cardForm.defense} onChange={(event) => setCardForm({ ...cardForm, defense: Number(event.target.value) })} />
               </label>
             </div>
             <label>
-              Description
+              Description (optional)
               <textarea rows="4" value={cardForm.description} onChange={(event) => setCardForm({ ...cardForm, description: event.target.value })} />
             </label>
             <button type="submit" disabled={!token}>{editingCardId ? 'Update card' : 'Create card'}</button>
