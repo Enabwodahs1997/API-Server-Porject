@@ -133,7 +133,32 @@ export function createApp(dataStore = {
     }
   });
 
+  // Alias: GET /cards/count (public)
+  app.get('/cards/count', async (_req, res, next) => {
+    try {
+      const count = await dataStore.countCards();
+      res.json({ status: 'success', count });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get('/api/cards/random', async (_req, res, next) => {
+    try {
+      const card = await dataStore.getRandomCard();
+
+      if (!card) {
+        return res.status(404).json({ status: 'error', message: 'No cards available.' });
+      }
+
+      res.json({ status: 'success', card });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Alias: GET /cards/random (public)
+  app.get('/cards/random', async (_req, res, next) => {
     try {
       const card = await dataStore.getRandomCard();
 
@@ -157,6 +182,16 @@ export function createApp(dataStore = {
     }
   });
 
+  // Alias: GET /types (public)
+  app.get('/types', async (_req, res, next) => {
+    try {
+      const types = await dataStore.listTypes();
+      res.json({ status: 'success', types });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get('/api/rarities', async (_req, res, next) => {
     try {
       const rarities = await dataStore.listRarities();
@@ -166,7 +201,27 @@ export function createApp(dataStore = {
     }
   });
 
+  // Alias: GET /rarities (public)
+  app.get('/rarities', async (_req, res, next) => {
+    try {
+      const rarities = await dataStore.listRarities();
+      res.json({ status: 'success', rarities });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get('/api/sets', async (_req, res, next) => {
+    try {
+      const sets = await dataStore.listSets();
+      res.json({ status: 'success', sets });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Alias: GET /sets (public)
+  app.get('/sets', async (_req, res, next) => {
     try {
       const sets = await dataStore.listSets();
       res.json({ status: 'success', sets });

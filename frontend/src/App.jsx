@@ -57,6 +57,9 @@ export default function App() {
   const [authForm, setAuthForm] = useState({ username: 'demo', password: 'demo1234' });
   const [cardForm, setCardForm] = useState(emptyForm);
   const [editingCardId, setEditingCardId] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [rarityFilter, setRarityFilter] = useState('All');
+  const [searchFilter, setSearchFilter] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
@@ -88,7 +91,32 @@ export default function App() {
     })();
   }, [token]);
 
-  const sortedCards = useMemo(() => [...cards], [cards]);
+  const cardTypes = useMemo(
+    () => ['All', ...new Set(cards.map((card) => card.type).filter(Boolean))],
+    [cards]
+  );
+
+  const cardRarities = useMemo(
+    () => ['All', ...new Set(cards.map((card) => card.rarity).filter(Boolean))],
+    [cards]
+  );
+
+  const filteredCards = useMemo(
+    () => cards.filter((card) => {
+      const typeMatch = typeFilter === 'All' || card.type === typeFilter;
+      const rarityMatch = rarityFilter === 'All' || card.rarity === rarityFilter;
+      const query = searchFilter.trim().toLowerCase();
+      const searchMatch = !query
+        || card.name?.toLowerCase().includes(query)
+        || card.description?.toLowerCase().includes(query)
+        || card.type?.toLowerCase().includes(query)
+        || card.rarity?.toLowerCase().includes(query);
+      return typeMatch && rarityMatch && searchMatch;
+    }),
+    [cards, typeFilter, rarityFilter, searchFilter]
+  );
+
+  const sortedCards = useMemo(() => [...filteredCards], [filteredCards]);
 
   async function handleAuthSubmit(event) {
     event.preventDefault();
@@ -333,7 +361,45 @@ export default function App() {
         <section className="panel cards-panel">
           <div className="panel-head">
             <h2>Cards</h2>
-            <span className="muted">{sortedCards.length} total</span>
+            <span className="muted">{sortedCards.length} shown / {cards.length} total</span>
+          </div>
+
+          <div className="filter-row">
+            <label>
+              Search cards
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(event) => setSearchFilter(event.target.value)}
+                placeholder="Name or description"
+              />
+            </label>
+
+            <label>
+              Filter by type
+              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+                {cardTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+
+            <label>
+              Filter by rarity
+              <select value={rarityFilter} onChange={(event) => setRarityFilter(event.target.value)}>
+                {cardRarities.map((rarity) => <option key={rarity} value={rarity}>{rarity}</option>)}
+              </select>
+            </label>
+
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => {
+                setTypeFilter('All');
+                setRarityFilter('All');
+                setSearchFilter('');
+              }}
+            >
+              Clear filters
+            </button>
           </div>
 
           <div className="cards">

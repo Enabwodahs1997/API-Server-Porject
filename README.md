@@ -76,6 +76,38 @@ npm test
 3. Copy the token into the `Authorization: Bearer <token>` header.
 4. Use the card routes under `/api/cards`.
 
+## API endpoints
+
+Auth:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/me` (requires `Authorization: Bearer <token>`)
+
+Cards:
+
+- `GET /api/cards` (requires auth)
+- `GET /api/cards/:id` (requires auth)
+- `POST /api/cards` (requires auth)
+- `PUT /api/cards/:id` (requires auth)
+- `DELETE /api/cards/:id` (requires auth)
+- `GET /api/cards/count`
+- `GET /api/cards/random`
+
+Metadata:
+
+- `GET /api/types`
+- `GET /api/rarities`
+- `GET /api/sets`
+
+Public shortcut routes (same responses as above):
+
+- `GET /cards/count`
+- `GET /cards/random`
+- `GET /types`
+- `GET /rarities`
+- `GET /sets`
+
 ## Why Docker?
 
 I chose to use Docker's software program because it allows you to build, test, and deploy applications quickly by packaging them into standardized units called containers. I felt it was a good use of the program due to the style of program I am building.
