@@ -182,27 +182,30 @@ export default function App() {
   async function clearCache() {
     setError('');
     setStatus('');
+    if (!token || !user) {
+      setError('You must be signed in to delete your cards.');
+      return;
+    }
+
+    if (!window.confirm('Delete all cards you created? This cannot be undone.')) return;
 
     try {
-      // Clear storage
-      localStorage.clear();
-      sessionStorage.clear();
+      setStatus('Deleting your cards...');
 
-      // Clear Cache Storage if available
-      if (window.caches && typeof window.caches.keys === 'function') {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
+      const myCards = cards.filter((c) => c.ownerId === user.id);
 
-      // Reset app state and reload to ensure a fresh load
-      setToken('');
-      setUser(null);
-      setCards([]);
-      setCardForm(emptyForm);
-      setEditingCardId(null);
-      window.location.reload();
+      await Promise.all(
+        myCards.map((c) => request(`/api/cards/${c.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        }))
+      );
+
+      await loadCards(token);
+      setStatus(`Deleted ${myCards.length} card(s).`);
     } catch (err) {
-      setError('Failed to clear cache');
+      setError(formatErrorMessage(err));
+      setStatus('');
     }
   }
 
